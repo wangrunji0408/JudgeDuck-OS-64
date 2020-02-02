@@ -2,9 +2,10 @@ MODE ?= release
 EFI := target/x86_64-unknown-uefi/$(MODE)/judge-duck.efi
 OVMF := OVMF.fd
 ESP := esp
+BUILD_ARGS := -Z build-std=core,alloc
 QEMU_ARGS := -nographic
 #	-debugcon file:debug.log -global isa-debugcon.iobase=0x402
-
+OBJDUMP := rust-objdump
 
 ifeq (${MODE}, release)
 	BUILD_ARGS += --release
@@ -13,7 +14,7 @@ endif
 .PHONY: build run header asm
 
 build:
-	cargo xbuild --target x86_64-unknown-uefi $(BUILD_ARGS)
+	cargo build $(BUILD_ARGS)
 
 run: build
 	mkdir -p $(ESP)/EFI/Boot
@@ -24,7 +25,7 @@ run: build
 		$(QEMU_ARGS)
 
 header:
-	cargo objdump -- -h $(EFI) | less
+	$(OBJDUMP) -h $(EFI) | less
 
 asm:
-	cargo objdump -- -d $(EFI) | less
+	$(OBJDUMP) -d $(EFI) | less

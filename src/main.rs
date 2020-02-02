@@ -106,9 +106,3 @@ fn load_file(bs: &BootServices, file: &mut RegularFile) -> &'static mut [u8] {
     let len = file.read(buf).expect_success("failed to read file");
     &mut buf[..len]
 }
-
-/// Workaround for Rust compiler bug:
-/// https://github.com/rust-lang/rust/issues/62785
-#[used]
-#[no_mangle]
-pub static _fltused: i32 = 0;
