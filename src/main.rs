@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(asm)]
+#![feature(abi_x86_interrupt)]
 
 #[macro_use]
 extern crate alloc;
@@ -25,13 +26,17 @@ pub extern "C" fn efi_main(_image: uefi::Handle, st: SystemTable<Boot>) -> Statu
 
     page_table::enable_page_table_editing();
     cpu::setup_gdt();
+    cpu::setup_idt();
 
     let (entry, stacktop) = load_user_program(st.boot_services(), "main");
     go_to_user(entry, stacktop);
     unimplemented!();
 }
 
-/// Go to user mode with `rip` and `rsp`
+static mut START_TSC: u64 = 0;
+
+/// Go to user mode with `rip` and `rsp`.
+/// Flush TLB and record start time.
 fn go_to_user(rip: usize, rsp: usize) {
     struct TrapFrame {
         // Pushed by CPU
@@ -51,11 +56,22 @@ fn go_to_user(rip: usize, rsp: usize) {
         ss: 0x20 | 3,
     };
     unsafe {
+        START_TSC = core::arch::x86_64::_rdtsc();
+        x86_64::instructions::tlb::flush_all();
         asm!(r#"
             mov rsp, $0
             iretq
         "# :: "r"(&tf) :: "intel");
     }
+}
+
+fn end() {
+    let start_tsc = unsafe { START_TSC };
+    let end_tsc = unsafe { core::arch::x86_64::_rdtsc() };
+    info!("start tsc: {:#x}", start_tsc);
+    info!("end   tsc: {:#x}", end_tsc);
+    info!("time  tsc: {:#x}", end_tsc - start_tsc);
+    unimplemented!();
 }
 
 /// Load user program at `path` into memory

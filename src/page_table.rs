@@ -5,7 +5,8 @@ use uefi::table::boot::*;
 use x86_64::registers::control::{Cr0, Cr0Flags, Cr3};
 use x86_64::registers::model_specific::{Efer, EferFlags};
 use x86_64::structures::paging::{
-    mapper::*, FrameAllocator, Mapper, Page, PageSize, PageTable, PageTableFlags, PhysFrame, Size4KiB,
+    mapper::*, FrameAllocator, Mapper, Page, PageSize, PageTable, PageTableFlags, PhysFrame,
+    Size4KiB,
 };
 use x86_64::{align_up, PhysAddr, VirtAddr};
 use xmas_elf::{program, ElfFile};

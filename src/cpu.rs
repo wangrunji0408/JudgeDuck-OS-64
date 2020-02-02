@@ -1,10 +1,11 @@
 use alloc::boxed::Box;
 
-use x86_64::instructions::tables::{load_tss};
+use x86_64::instructions::tables::load_tss;
 use x86_64::structures::gdt::{Descriptor, SegmentSelector};
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::structures::{DescriptorTablePointer};
-use x86_64::{VirtAddr};
+use x86_64::structures::DescriptorTablePointer;
+use x86_64::VirtAddr;
 
 /// Add GDT entries for user mode
 pub fn setup_gdt() {
@@ -40,6 +41,24 @@ pub fn setup_gdt() {
         load_tss(SegmentSelector(0x10));
     }
     // TODO: backup and recover
+}
+
+pub fn setup_idt() {
+    static mut IDT: InterruptDescriptorTable = InterruptDescriptorTable::new();
+    unsafe {
+        x86_64::instructions::interrupts::disable();
+        IDT.general_protection_fault.set_handler_fn(gpf);
+        IDT[0x68].set_handler_fn(timer);
+        IDT.load();
+    }
+}
+
+extern "x86-interrupt" fn timer(tf: &mut InterruptStackFrame) {
+    info!("timer interrupt");
+}
+
+extern "x86-interrupt" fn gpf(tf: &mut InterruptStackFrame, error_code: u64) {
+    super::end();
 }
 
 /// Get current GDT register
