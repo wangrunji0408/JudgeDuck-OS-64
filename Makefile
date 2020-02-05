@@ -16,6 +16,9 @@ endif
 build:
 	cargo build $(BUILD_ARGS)
 
+clippy:
+	cargo clippy $(BUILD_ARGS)
+
 run: build
 	mkdir -p $(ESP)/EFI/Boot
 	cp $(EFI) $(ESP)/EFI/Boot/BootX64.efi
