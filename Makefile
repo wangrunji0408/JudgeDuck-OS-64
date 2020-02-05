@@ -3,7 +3,7 @@ EFI := target/x86_64-unknown-uefi/$(MODE)/judge-duck.efi
 OVMF := OVMF.fd
 ESP := esp
 BUILD_ARGS := -Z build-std=core,alloc
-QEMU_ARGS := -nographic
+QEMU_ARGS := -nographic -cpu qemu64,fsgsbase
 #	-debugcon file:debug.log -global isa-debugcon.iobase=0x402
 OBJDUMP := rust-objdump
 

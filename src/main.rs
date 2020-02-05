@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(asm)]
+#![feature(abi_efiapi)]
 #![feature(abi_x86_interrupt)]
 
 #[macro_use]
@@ -9,69 +10,53 @@ extern crate alloc;
 #[macro_use]
 extern crate log;
 
+use trapframe::{GeneralRegs, TrapFrame, UserContext};
 use uefi::prelude::*;
 use uefi::proto::media::file::*;
 use uefi::proto::media::fs::SimpleFileSystem;
 use uefi::table::boot::*;
 use xmas_elf::ElfFile;
 
-mod cpu;
 mod page_table;
 
-#[no_mangle]
-pub extern "C" fn efi_main(_image: uefi::Handle, st: SystemTable<Boot>) -> Status {
+#[entry]
+fn efi_main(_image: uefi::Handle, st: SystemTable<Boot>) -> Status {
     // Initialize utilities (logging, memory allocation...)
     uefi_services::init(&st).expect_success("failed to initialize utilities");
     info!("Welcome to JudgeDuck OS 64!");
 
     page_table::enable_page_table_editing();
-    cpu::setup_gdt();
-    cpu::setup_idt();
+    unsafe {
+        trapframe::init();
+    }
 
     let (entry, stacktop) = load_user_program(st.boot_services(), "main");
-    go_to_user(entry, stacktop);
-    unimplemented!();
-}
 
-static mut START_TSC: u64 = 0;
-
-/// Go to user mode with `rip` and `rsp`.
-/// Flush TLB and record start time.
-fn go_to_user(rip: usize, rsp: usize) {
-    struct TrapFrame {
-        // Pushed by CPU
-        pub rip: usize,
-        pub cs: usize,
-        pub rflags: usize,
-
-        // Pushed by CPU when Ring3->0
-        pub rsp: usize,
-        pub ss: usize,
-    }
-    let tf = TrapFrame {
-        rip,
-        cs: 0x28 | 3,
-        rflags: 0x002, // to enable interrupt: |= 0x200
-        rsp,
-        ss: 0x20 | 3,
+    let mut context = UserContext {
+        vector: Default::default(),
+        general: GeneralRegs {
+            rip: entry,
+            rsp: stacktop,
+            ..Default::default()
+        },
+        trap_num: 0,
+        error_code: 0,
     };
-    unsafe {
-        START_TSC = core::arch::x86_64::_rdtsc();
-        x86_64::instructions::tlb::flush_all();
-        asm!(r#"
-            mov rsp, $0
-            iretq
-        "# :: "r"(&tf) :: "intel");
-    }
-}
-
-fn end() {
-    let start_tsc = unsafe { START_TSC };
+    let start_tsc = unsafe { core::arch::x86_64::_rdtsc() };
+    context.run();
     let end_tsc = unsafe { core::arch::x86_64::_rdtsc() };
     info!("start tsc: {:#x}", start_tsc);
     info!("end   tsc: {:#x}", end_tsc);
     info!("time  tsc: {:#x}", end_tsc - start_tsc);
     unimplemented!();
+}
+
+#[no_mangle]
+extern "sysv64" fn trap_handler(tf: &mut TrapFrame) {
+    match tf.trap_num {
+        0x68 => {} // UEFI timer
+        _ => panic!("TRAP: {:#x?}", tf),
+    }
 }
 
 /// Load user program at `path` into memory
